@@ -1,0 +1,71 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  8
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      fvSchemes;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+ddtSchemes
+{
+    default     backward;
+}
+
+gradSchemes
+{
+    default         leastSquares;
+   // "grad\(U.*\)"   faceMDLimited leastSquares 1 0;
+   // grad(U.shear)   cellMDLimited leastSquares 1 0;
+}
+
+divSchemes
+{
+    default                         none;
+
+    "div\(phi,alpha.*\)"            Gauss vanLeer;
+    "div\(phir,alpha.*\)"           Gauss vanLeer;
+
+     div(alphaRhoPhi.particles,U.particles)      Gauss linearUpwindV grad(U.particles);
+     div(phi.particles,U.particles)              Gauss linearUpwindV grad(U.particles);
+     div(alphaRhoPhi.air,U.air)                  Gauss linearUpwindV grad(U.air);
+     div(phi.air,U.air)                          Gauss linearUpwindV grad(U.air);
+/*
+    "div\(alphaRhoPhi.*,U.*\)"      Gauss limitedLinear 1;
+    "div\(phi.*,U.*\)"              Gauss limitedLinear 1;
+*/
+    "div\(alphaRhoPhi.*,(h|e).*\)"  Gauss limitedLinear 1;
+    "div\(alphaRhoPhi.*,K.*\)"      Gauss limitedLinear 1;
+    "div\(alphaPhi.*,p\)"           Gauss limitedLinear 1;
+
+    div((((alpha.air*thermo:rho.air)*nuEff.air)*dev2(T(grad(U.air))))) Gauss linear;
+    div((((alpha.particles*thermo:rho.particles)*nut.particles)*dev2(T(grad(U.particles))))) Gauss linear;
+    div((((alpha.air*thermo:rho.air)*nut.air)*dev2(T(grad(U.air))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    default     Gauss linear uncorrected;
+    bounded     Gauss linear uncorrected;
+}
+
+interpolationSchemes
+{
+    default     linear;
+}
+
+snGradSchemes
+{
+    default     uncorrected;
+    bounded     uncorrected;
+}
+
+// ************************************************************************* //
