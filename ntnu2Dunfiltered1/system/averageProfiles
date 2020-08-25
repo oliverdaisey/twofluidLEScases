@@ -1,0 +1,150 @@
+averageProfiles
+{
+    // Load the library containing the 'coded' functionObject
+    libs            ("libutilityFunctionObjects.so");
+    type coded;
+
+    // Name of on-the-fly generated functionObject
+    name averageProfiles;
+
+    codeWrite
+    #{
+        // Lookup fields
+        
+        Info<< "Reading velocity field U\n" << endl;
+        volVectorField Up
+        (
+            IOobject
+            (
+                "U.particles",
+                mesh().time().timeName(),
+                mesh(),
+                IOobject::MUST_READ,
+                IOobject::NO_WRITE
+            ),
+            mesh()
+        );
+
+
+        Info<< "Reading alpha field alpha.particles\n" << endl;
+        volScalarField alpha
+        (
+            IOobject
+            (
+                "alpha.particles",
+                mesh().time().timeName(),
+                mesh(),
+                IOobject::MUST_READ,
+                IOobject::AUTO_WRITE
+            ),
+            mesh()
+        );
+
+        Info<< "Reading pressure field p_rgh\n" << endl;
+        volScalarField p_rgh
+        (
+            IOobject
+            (
+                "p_rgh",
+                mesh().time().timeName(),
+                mesh(),
+                IOobject::MUST_READ,
+                IOobject::AUTO_WRITE
+            ),
+            mesh()
+        );
+
+
+        
+        //- We only care about the velocity magnitude
+        volScalarField magUp(mag(Up));
+        
+        //- Height of the domain to sample
+        scalar L(3.2);
+        
+        //- Number of samples
+        label Ns(25);
+        
+        //- Sampling interval
+        scalar deltaS(L/Ns);
+        
+        //- Initialise arrays
+        scalarField sampleMagUp(Ns,0);
+        scalarField sampleAlpha(Ns,0);
+        scalarField sampleP(Ns,0);
+        scalarField sampleZ(Ns,0);
+        scalarField sampleV(Ns,small);
+        
+        //- Loop over all the sampling points from bottom to top
+        forAll(sampleZ,sId)
+        {
+            //- Compute sampling coordinate
+            sampleZ[sId] = (sId + 0.5)*deltaS;
+            
+            //- Loop over all the cells
+            forAll(mesh().C(),cellI)
+            {
+                //- Add to bin if within the sampling region
+                if
+                (
+                    mesh().C()[cellI].z() > sId*deltaS 
+                    && 
+                    mesh().C()[cellI].z()  < (sId+1)*deltaS
+                )
+                {
+                    sampleMagUp[sId] += 
+                        magUp.primitiveField()[cellI]*mesh().V()[cellI];
+
+                    sampleAlpha[sId] += 
+                        alpha.primitiveField()[cellI]*mesh().V()[cellI];
+
+                    sampleP[sId] += 
+                        p_rgh.primitiveField()[cellI]*mesh().V()[cellI];
+
+                    sampleV[sId] += mesh().V()[cellI];                 
+                }            
+            }
+        }
+        
+        //- Collect from processors        
+        reduce(sampleMagUp,sumOp<scalarField>());
+        reduce(sampleAlpha,sumOp<scalarField>());
+        reduce(sampleP,sumOp<scalarField>());
+        reduce(sampleV,sumOp<scalarField>());
+
+        //- Divide by total volume to compute average values
+        sampleMagUp /= sampleV;
+        sampleAlpha /= sampleV;
+        sampleP /= sampleV;
+        
+        //- Write to file (only master process)
+        if (Pstream::master())
+        {
+            std::ofstream file;
+            file.open
+            (
+                mesh().time().timeName() + "/profiles.dat",
+                std::ios::out 
+            );
+
+            //- Write header
+            file << "zCoord"
+                 << " " << "magUp"
+                 << " " << "alpha"
+                 << " " << "p_rgh"
+                 << " " << "vol" 
+                 << "\n"; 
+
+            forAll(sampleZ,zId)
+            {
+
+                file << sampleZ[zId]
+                     << " " << sampleMagUp[zId]
+                     << " " << sampleAlpha[zId]
+                     << " " << sampleP[zId]
+                     << " " << sampleV[zId] 
+                     << "\n";         
+            }        
+        }
+    #};
+}
